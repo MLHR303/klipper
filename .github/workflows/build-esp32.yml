@@ -1,0 +1,29 @@
+name: Build Klipper ESP32
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential libncurses-dev python3
+      - name: Configure ESP32
+        run: |
+          touch .config
+          echo "CONFIG_LOW_LEVEL_OPTIONS=y" >> .config
+          echo "CONFIG_MCU_ESP32=y" >> .config
+          echo "CONFIG_ESP32_GENERIC=y" >> .config
+          echo "CONFIG_COMMS_USB=y" >> .config
+          make olddefconfig
+      - name: Build
+        run: make -j$(nproc)
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: klipper-esp32-bin
+          path: out/klipper.bin
