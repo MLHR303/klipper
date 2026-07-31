@@ -1,74 +1,62 @@
-name: Build Klipper ESP32
+name: Build Klipper ESP32 Firmware
 
 on:
   workflow_dispatch:
   push:
     branches:
       - master
-    paths:
-      - '.github/workflows/build-esp32.yml'
-      - 'src/**'
-      - 'lib/**'
-      - 'klippy/**'
-      - 'Makefile'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Klipper
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            python3 \
-            python3-pip \
-            python3-venv \
-            git \
-            wget \
-            curl \
-            unzip \
-            libffi-dev \
-            libssl-dev
+          sudo apt-get install -y git wget flex bison gperf python3 python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
 
-      - name: Set up ESP32 toolchain
+      - name: Cache ESP-IDF
+        uses: actions/cache@v4
+        with:
+          path: ~/esp/esp-idf
+          key: ${{ runner.os }}-esp-idf-v5.3
+
+      - name: Setup ESP-IDF
         run: |
-          mkdir -p $HOME/esp
-          cd $HOME/esp
-
-          if [ ! -d "xtensa-esp32-elf" ]; then
-            wget -q https://github.com/espressif/crosstool-NG/releases/download/esp-2021r2-patch5/xtensa-esp32-elf-gcc8_4_0-esp-2021r2-patch5-linux-amd64.tar.gz
-            tar -xzf xtensa-esp32-elf-gcc8_4_0-esp-2021r2-patch5-linux-amd64.tar.gz
+          if [ ! -d "$HOME/esp/esp-idf" ]; then
+            mkdir -p ~/esp
+            cd ~/esp
+            git clone --recursive https://github.com/espressif/esp-idf.git
+            cd esp-idf
+            git checkout release/v5.3
+          else
+            cd ~/esp/esp-idf
+            git fetch --all --tags
+            git checkout release/v5.3
+            git pull
+            git submodule update --init --recursive
           fi
-
-          echo "$HOME/esp/xtensa-esp32-elf/bin" >> $GITHUB_PATH
-          xtensa-esp32-elf-gcc --version
-
-      - name: Configure Klipper for ESP32
-        working-directory: ${{ github.workspace }}
+          cd ~/esp/esp-idf
+          ./install.sh esp32
+          
+      - name: Build Klipper for ESP32
         run: |
-          make clean
-          cat > .config <<EOF
-          CONFIG_MCU="esp32"
-          CONFIG_MCU_ESP32=y
-          CONFIG_BOARD_DIRECT_PINS=y
-          CONFIG_USB_SERIAL=y
-          EOF
-          make olddefconfig
+          . ~/esp/esp-idf/export.sh
+          cd ${{ github.workspace }}
+          ./scripts/build-esp32.sh
 
-      - name: Build
-        working-directory: ${{ github.workspace }}
-        run: |
-          make -j$(nproc)
-
-      - name: Upload ESP32 firmware
+      - name: Find and Upload Firmware
         uses: actions/upload-artifact@v4
         with:
           name: klipper-esp32-firmware
           path: |
-            out/klipper.bin
-            out/firmware.bin
+            ${{ github.workspace }}/build/klipper-esp32.bin
+            ${{ github.workspace }}/out/klipper.bin
