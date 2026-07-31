@@ -7,23 +7,48 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Klipper
+        uses: actions/checkout@v4
+
       - name: Install deps
         run: |
           sudo apt update
-          sudo apt install -y build-essential libncurses-dev python3
+          sudo apt install -y \
+            build-essential \
+            libncurses-dev \
+            python3 \
+            python3-pip \
+            python3-venv \
+            git \
+            wget \
+            unzip \
+            gcc \
+            g++ \
+            make
+
       - name: Configure ESP32
+        working-directory: ${{ github.workspace }}
         run: |
           touch .config
-          echo "CONFIG_LOW_LEVEL_OPTIONS=y" >> .config
-          echo "CONFIG_MCU_ESP32=y" >> .config
-          echo "CONFIG_ESP32_GENERIC=y" >> .config
-          echo "CONFIG_COMMS_USB=y" >> .config
+          # 清空/覆盖配置
+          > .config
+          echo 'CONFIG_LOW_LEVEL_OPTIONS=y' >> .config
+          echo 'CONFIG_MCU_ESP32=y' >> .config
+          echo 'CONFIG_ESP32_GENERIC=y' >> .config
+          echo 'CONFIG_COMPILE_GCC=y' >> .config
+          # 关闭 AVR/其他 MCU，避免默认成 avr-gcc
+          echo 'CONFIG_MCU_AVR=n' >> .config
+          echo 'CONFIG_MCU_ATMEGA168=n' >> .config
+          echo 'CONFIG_MCU_ATMEGA328=n' >> .config
+          echo 'CONFIG_MCU_ATMEGA644=n' >> .config
+          echo 'CONFIG_MCU_ATMEGA1284=n' >> .config
+          echo 'CONFIG_MCU_ATMEGA2560=n' >> .config
+          echo 'CONFIG_MCU_SAMD21=n' >> .config
+          echo 'CONFIG_MCU_STM32=n' >> .config
+          echo 'CONFIG_MCU_RP2040=n' >> .config
+
           make olddefconfig
+
       - name: Build
-        run: make -j$(nproc)
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: klipper-esp32-bin
-          path: out/klipper.bin
+        run: |
+          make -j$(nproc)
