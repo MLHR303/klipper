@@ -46,17 +46,20 @@ jobs:
           fi
           cd ~/esp/esp-idf
           ./install.sh esp32
-          
-      - name: Build Klipper for ESP32
+
+      - name: Configure Klipper for ESP32
         run: |
           . ~/esp/esp-idf/export.sh
           cd ${{ github.workspace }}
-          ./scripts/build-esp32.sh
+          idf.py set-target esp32
+          idf.py build
 
       - name: Find and Upload Firmware
         uses: actions/upload-artifact@v4
         with:
           name: klipper-esp32-firmware
           path: |
-            ${{ github.workspace }}/build/klipper-esp32.bin
-            ${{ github.workspace }}/out/klipper.bin
+            ${{ github.workspace }}/build/klipper.bin
+            ${{ github.workspace }}/build/klipper.elf
+            ${{ github.workspace }}/build/bootloader/bootloader.bin
+            ${{ github.workspace }}/build/partition_table/partition-table.bin
